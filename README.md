@@ -1,7 +1,7 @@
 # DeepMyst MCP Server
 *Intelligent LLM Optimization & Routing for Claude Desktop*
 
-![DeepMyst Logo](https://assets.deepmyst.com/logo/deepmyst-logo-dark.png)
+![DeepMyst MCP](/static/deepmyst-MCP.png)
 
 ## Overview
 
