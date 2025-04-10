@@ -573,8 +573,8 @@ if __name__ == "__main__":
         # Configure Starlette app with routes - FIXED: added root route and fixed ASGI app handling
         app = Starlette(routes=[
             Route("/", endpoint=homepage),  # Added homepage route
-            Route("/mcp/sse", endpoint=handle_sse, include_in_schema=False),  # Mark as ASGI app
-            Route("/sse", endpoint=handle_sse, include_in_schema=False),  # Add alternative SSE endpoint
+            Route("/mcp/sse", endpoint=handle_sse, is_asgi=True),  # Mark as ASGI app explicitly
+            Route("/sse", endpoint=handle_sse, is_asgi=True),  # Add alternative SSE endpoint
             Route("/mcp/message", endpoint=handle_post, methods=["POST"]),
             Route("/message", endpoint=handle_post, methods=["POST"]),  # Add alternative message endpoint
         ])
