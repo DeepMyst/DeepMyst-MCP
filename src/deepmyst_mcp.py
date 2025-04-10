@@ -22,6 +22,7 @@ from mcp.server.sse import SseServerTransport
 import uvicorn
 from starlette.applications import Starlette
 from starlette.routing import Route
+from starlette.responses import JSONResponse
 
 # Configure logging
 logging.basicConfig(
@@ -485,16 +486,34 @@ def get_health_check() -> str:
             "message": str(e)
         })
 
-# SSE transport handlers
+# Homepage route to handle root requests
+async def homepage(request):
+    """Serve a simple homepage with API documentation"""
+    return JSONResponse({
+        "name": "DeepMyst MCP Server",
+        "version": "1.0.0",
+        "status": "running",
+        "endpoints": {
+            "/": "API documentation",
+            "/mcp/sse": "SSE connection endpoint",
+            "/mcp/message": "HTTP POST endpoint for messages"
+        },
+        "documentation": "For more information, visit https://platform.deepmyst.com"
+    })
+
+# SSE transport handlers - FIXED: now correctly implements the ASGI application interface
 async def handle_sse(scope, receive, send):
     """Handle SSE connection requests"""
-    async with sse.connect_sse(scope, receive, send) as streams:
+    # Connect using ASGI interface directly
+    async with SseServerTransport.connect_sse(scope, receive, send) as streams:
         logger.info("New SSE connection established")
         await mcp.run_with_transport(streams[0], streams[1])
 
+# Fixed POST handler
 async def handle_post(scope, receive, send):
     """Handle POST requests for client-to-server messages"""
-    await sse.handle_post_message(scope, receive, send)
+    # Use ASGI interface directly
+    await SseServerTransport.handle_post_message(scope, receive, send)
 
 # Run the server
 if __name__ == "__main__":
@@ -517,9 +536,10 @@ if __name__ == "__main__":
         # Create the SSE transport
         sse = SseServerTransport("/mcp/message")
         
-        # Configure Starlette app with routes
+        # Configure Starlette app with routes - FIXED: added root route and fixed ASGI app handling
         app = Starlette(routes=[
-            Route("/mcp/sse", endpoint=handle_sse),
+            Route("/", endpoint=homepage),  # Added homepage route
+            Route("/mcp/sse", endpoint=handle_sse, include_in_schema=False),  # Mark as ASGI app
             Route("/mcp/message", endpoint=handle_post, methods=["POST"]),
         ])
         
