@@ -1,5 +1,5 @@
 # DeepMyst MCP Server
-*Intelligent LLM Optimization & Routing for Claude Desktop*
+*Intelligent LLM Optimization & Routing for Claude Desktop and HTTP Clients*
 
 ![DeepMyst MCP](/static/deepmyst-MCP.png)
 
@@ -12,6 +12,8 @@ DeepMyst MCP Server creates a seamless bridge between DeepMyst and Claude Deskto
 - **Token Optimization** - Reduce token usage by up to 75% while preserving response quality, directly lowering your API costs
 - **Smart Model Routing** - Automatically select the optimal LLM for each specific query based on task requirements
 - **Combined Capabilities** - Use both optimization and routing together for maximum efficiency
+- **Multiple Transport Support** - Connect via STDIO (for Claude Desktop) or SSE (for HTTP clients)
+- **Client-provided API Keys** - No need to store your DeepMyst API key on the server
 
 ## How It Works
 
@@ -49,21 +51,39 @@ source .venv/bin/activate  # On macOS/Linux
 .venv\Scripts\activate     # On Windows
 
 # Install dependencies
-uv pip install mcp openai aiohttp
+uv pip install mcp openai aiohttp uvicorn starlette
 ```
 
-## Configuration
+## Running the Server
 
-### Setting Up Your DeepMyst API Key
+### Local Deployment
 
-**Environment Variable (Recommended):**
+**For Claude Desktop (STDIO Transport):**
 ```bash
-export DEEPMYST_API_KEY="your-deepmyst-api-key"  # macOS/Linux
-# OR
-set DEEPMYST_API_KEY="your-deepmyst-api-key"     # Windows
+uv run deepmyst_mcp.py --stdio
 ```
 
-**Configuring Claude Desktop:**
+**For HTTP Clients (SSE Transport):**
+```bash
+uv run deepmyst_mcp.py
+```
+
+By default, the SSE server runs on `0.0.0.0:8000`. You can customize the host and port using environment variables:
+```bash
+export HOST=127.0.0.1  # Change the host
+export PORT=3000       # Change the port
+uv run deepmyst_mcp.py
+```
+
+### Deploying to Render
+
+The server is deployed at: https://deepmyst-mcp.onrender.com
+
+Available endpoints:
+- SSE endpoint: `https://deepmyst-mcp.onrender.com/mcp/sse`
+- Message endpoint: `https://deepmyst-mcp.onrender.com/mcp/message`
+
+## Configuring Claude Desktop
 
 1. Open your Claude Desktop configuration file:
    - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -77,17 +97,15 @@ set DEEPMYST_API_KEY="your-deepmyst-api-key"     # Windows
       "command": "uv",
       "args": [
         "run",
-        "C:/Users/username/Documents/DeepMyst-MCP/deepmyst_mcp.py"
-      ],
-      "env": {
-        "DEEPMYST_API_KEY": "your-deepmyst-api-key"
-      }
+        "path/to/deepmyst_mcp.py",
+        "--stdio"
+      ]
     }
   }
 }
 ```
 
-Make sure to replace the file path and API key with your actual values, then save and restart Claude Desktop.
+3. Save the file and restart Claude Desktop
 
 ## Tools and Capabilities
 
@@ -97,30 +115,44 @@ The DeepMyst MCP server provides several powerful tools:
    Analyzes your query and recommends the optimal model.
    ```
    Prompt: What's the best model for writing a poem about quantum physics?
+   
+   Parameters:
+   - api_key: your-deepmyst-api-key
    ```
 
 2. **Optimized Completion**  
    Generates a response with token optimization to reduce costs.
    ```
-   Prompt: Analyze the attached book, using the optimized_completion tool.
+   Prompt: Use optimized_completion to explain quantum entanglement, with these parameters:
+   - api_key: your-deepmyst-api-key
+   - model: gpt-4o
+   - temperature: 0.7
    ```
 
 3. **Auto-Routed Completion**  
    Generates a response using the DeepMyst router to select the best model.
    ```
-   Prompt: Generate a Python function to analyze sales data using auto_routed_completion.
+   Prompt: Use auto_routed_completion to generate a Python function with these parameters:
+   - api_key: your-deepmyst-api-key
+   - base_model: gpt-4o-mini
    ```
 
 4. **Smart Completion**  
    Combines routing and optimization - first determines the best model for your query, then optionally applies token optimization.
    ```
-   Prompt: Use smart_completion to explain how blockchain works in simple terms.
+   Prompt: Use smart_completion to explain how blockchain works, with these parameters:
+   - api_key: your-deepmyst-api-key
+   - optimize: true
    ```
 
 5. **DeepMyst Completion**  
    The most flexible tool with all options configurable.
    ```
-   Prompt: Use deepmyst_completion with GPT-4o, token optimization, and no routing to summarize this article.
+   Prompt: Use deepmyst_completion to summarize this article, with these parameters:
+   - api_key: your-deepmyst-api-key
+   - base_model: gpt-4o
+   - optimize: true
+   - auto_route: false
    ```
 
 ## Advanced Use Cases
@@ -158,16 +190,16 @@ Match tasks to the most suitable models based on their specific capabilities:
 
 **Example**: A financial analysis workflow could route data processing to fast, efficient models, numerical analysis to math-specialized models, and final report generation to models with better writing capabilities.
 
-### Adaptive Learning and Improvement
+### Web Integration with SSE Transport
 
-Continuously improve routing decisions based on performance:
+With SSE transport support, you can integrate DeepMyst MCP into web applications:
 
-* **Performance Tracking**: Monitor response quality, token usage, and latency across different models for various task types
-* **Adaptive Routing**: Refine routing decisions based on historical performance data
-* **A/B Testing**: Automatically test different models on similar tasks to identify performance patterns
-* **Preference Learning**: Adjust routing based on user feedback and preferences
+* **Remote Access**: Access your DeepMyst MCP server from any client over HTTP
+* **Web Applications**: Integrate with web frontends and backends
+* **Multiple Clients**: Connect multiple clients simultaneously to the same server
+* **API Gateway**: Use as a gateway for your own applications
 
-**Example**: After observing that a specific model consistently performs better for creative writing tasks, DeepMyst can automatically adjust its routing to prefer that model for future creative assignments.
+**Example**: Build a web interface that connects to the DeepMyst MCP server, allowing users to interact with multiple LLMs through a unified UI.
 
 ## Supported LLM Providers
 
@@ -178,18 +210,28 @@ DeepMyst supports multiple LLM providers including:
 - **Google**: Gemini 2.0 Flash, Gemini 1.5 Pro, etc.
 - **Groq**: Llama 3.1, Mixtral, etc.
 
-## Custom Configurations
+## Security Considerations
 
-You can customize tool behavior by passing specific parameters:
-```
-Prompt: Use deepmyst_completion with these parameters:
-- base_model: gpt-4o-mini
-- system_message: You are a helpful assistant specializing in finance
-- optimize: true
-- auto_route: false
-- temperature: 0.3
-- max_tokens: 2000
-```
+### API Key Handling
+
+The server now requires clients to provide their DeepMyst API key with each tool call. This has several security implications:
+
+* **Advantages**:
+  * No API keys stored on the server
+  * Each user can use their own API key
+  * Server operator doesn't need access to API keys
+
+* **Considerations**:
+  * API keys will be visible in conversation history
+  * Keys are passed with each tool call
+  * May appear in logs if not properly configured
+
+For enhanced security in production environments:
+
+1. Always use HTTPS for server communication
+2. Consider implementing a token-based authentication system
+3. Implement key masking in logs
+4. Use environment-specific security measures based on your deployment platform
 
 ## Resources
 
@@ -208,15 +250,27 @@ Prompt: Use deepmyst_completion with these parameters:
 
 **API Key errors:**
 - Verify your DeepMyst API key is correct
-- Ensure the key is properly set as an environment variable or in the config
+- Ensure you're providing the API key with each tool call
+- Check for typos in the API key parameter name
 
 **Server connection issues:**
 - Check that all dependencies are installed
 - Verify the path to deepmyst_mcp.py is correct
 - Look for error messages in the terminal running the server
 
+**SSE transport issues:**
+- Check that the port is not in use by another application
+- Verify network connectivity between client and server
+- Look for firewall or network restrictions that might block the connection
+
 ### Logs
 Check the DeepMyst MCP server logs for more detailed troubleshooting information. Logs are written to `deepmyst.log` in the same directory as the server script.
+
+### Health Check
+For SSE deployments, you can check server health by accessing the `deepmyst://health` resource:
+```
+Prompt: Check the health status of the DeepMyst MCP server.
+```
 
 ---
 

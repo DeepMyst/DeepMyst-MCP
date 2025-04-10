@@ -3,6 +3,7 @@ DeepMyst MCP Server with SSE and STDIO Support
 
 This server provides access to DeepMyst optimization and routing capabilities through MCP.
 It supports both STDIO transport (for Claude Desktop) and SSE transport (for HTTP clients).
+API keys are provided by clients during tool calls rather than stored on the server.
 
 Usage:
 - For Claude Desktop: python deepmyst_mcp.py --stdio
@@ -84,11 +85,25 @@ PROVIDER_MODEL_MAP = {
 }
 
 # Configure OpenAI client with DeepMyst endpoint
-def get_client():
-    """Get configured OpenAI client with DeepMyst endpoint"""
-    api_key = os.environ.get("DEEPMYST_API_KEY")
+def get_client(api_key=None):
+    """Get configured OpenAI client with DeepMyst endpoint
+
+    Args:
+        api_key: The DeepMyst API key (required if not set as environment variable)
+    
+    Returns:
+        OpenAI client configured to use DeepMyst endpoint
+    
+    Raises:
+        ValueError: If no API key is provided
+    """
+    # First try to get API key from parameter
     if not api_key:
-        raise ValueError("DEEPMYST_API_KEY environment variable not set")
+        # Fall back to environment variable as a backup
+        api_key = os.environ.get("DEEPMYST_API_KEY")
+        
+    if not api_key:
+        raise ValueError("No DeepMyst API key provided. Please provide a key as a parameter.")
     
     return OpenAI(
         api_key=api_key,
@@ -98,6 +113,7 @@ def get_client():
 @mcp.tool()
 async def get_best_model_for_query(
     query: str,
+    api_key: str,  # Required API key parameter
     require_reasoning: bool = False,
     fast_response: bool = False,
     cost_sensitive: bool = False,
@@ -107,6 +123,7 @@ async def get_best_model_for_query(
     
     Args:
         query: The text of the query to analyze
+        api_key: Your DeepMyst API key
         require_reasoning: Whether the query requires strong reasoning capabilities
         fast_response: Whether response speed is a priority
         cost_sensitive: Whether to prioritize lower-cost models
@@ -116,10 +133,8 @@ async def get_best_model_for_query(
         JSON object with the recommended model and details
     """
     try:
-        # Get DEEPMYST_API_KEY from environment
-        api_key = os.environ.get("DEEPMYST_API_KEY")
         if not api_key:
-            error_msg = "DEEPMYST_API_KEY environment variable not set"
+            error_msg = "DeepMyst API key is required"
             ctx.error(error_msg)
             return {"error": error_msg}
         
@@ -142,7 +157,7 @@ async def get_best_model_for_query(
         async with aiohttp.ClientSession() as session:
             headers = {
                 'Content-Type': 'application/json',
-                'X-API-Key': api_key
+                'X-API-Key': api_key  # Use provided API key
             }
             
             try:
@@ -178,6 +193,7 @@ async def get_best_model_for_query(
 @mcp.tool()
 async def optimized_completion(
     prompt: str,
+    api_key: str,  # Required API key parameter
     model: str = "gpt-4o-mini",
     system_message: Optional[str] = None,
     temperature: float = 0.7,
@@ -189,6 +205,7 @@ async def optimized_completion(
     
     Args:
         prompt: The user prompt to send to the model
+        api_key: Your DeepMyst API key
         model: Base model to use (will add -optimize flag)
         system_message: Optional system message
         temperature: Controls randomness (0-1)
@@ -199,7 +216,12 @@ async def optimized_completion(
         The model's response text
     """
     try:
-        client = get_client()
+        if not api_key:
+            error_msg = "DeepMyst API key is required"
+            ctx.error(error_msg)
+            return f"Error: DeepMyst API key is required"
+            
+        client = get_client(api_key)  # Use provided API key
         
         # Add optimization flag
         optimized_model = f"{model}-optimize"
@@ -229,6 +251,7 @@ async def optimized_completion(
 @mcp.tool()
 async def auto_routed_completion(
     prompt: str,
+    api_key: str,  # Required API key parameter
     base_model: str = "gpt-4o-mini",
     system_message: Optional[str] = None,
     temperature: float = 0.7,
@@ -240,6 +263,7 @@ async def auto_routed_completion(
     
     Args:
         prompt: The user prompt to send to the model
+        api_key: Your DeepMyst API key
         base_model: Base model to use (will add -auto flag)
         system_message: Optional system message
         temperature: Controls randomness (0-1)
@@ -250,7 +274,12 @@ async def auto_routed_completion(
         The model's response text
     """
     try:
-        client = get_client()
+        if not api_key:
+            error_msg = "DeepMyst API key is required"
+            ctx.error(error_msg)
+            return f"Error: DeepMyst API key is required"
+            
+        client = get_client(api_key)  # Use provided API key
         
         # Add auto routing flag
         routed_model = f"{base_model}-auto"
@@ -280,6 +309,7 @@ async def auto_routed_completion(
 @mcp.tool()
 async def deepmyst_completion(
     prompt: str,
+    api_key: str,  # Required API key parameter
     base_model: str = "gpt-4o-mini",
     system_message: Optional[str] = None,
     optimize: bool = True,
@@ -292,6 +322,7 @@ async def deepmyst_completion(
     
     Args:
         prompt: The user prompt to send to the model
+        api_key: Your DeepMyst API key
         base_model: Base model to use
         system_message: Optional system message
         optimize: Whether to enable token optimization
@@ -304,7 +335,12 @@ async def deepmyst_completion(
         The model's response text
     """
     try:
-        client = get_client()
+        if not api_key:
+            error_msg = "DeepMyst API key is required"
+            ctx.error(error_msg)
+            return f"Error: DeepMyst API key is required"
+            
+        client = get_client(api_key)  # Use provided API key
         
         # Build model name with flags
         model_name = base_model
@@ -338,6 +374,7 @@ async def deepmyst_completion(
 @mcp.tool()
 async def smart_completion(
     prompt: str,
+    api_key: str,  # Required API key parameter
     system_message: Optional[str] = None,
     optimize: bool = True,
     temperature: float = 0.7,
@@ -349,6 +386,7 @@ async def smart_completion(
     
     Args:
         prompt: The user prompt to send to the model
+        api_key: Your DeepMyst API key
         system_message: Optional system message
         optimize: Whether to enable token optimization
         temperature: Controls randomness (0-1)
@@ -359,10 +397,15 @@ async def smart_completion(
         The model's response text
     """
     try:
-        client = get_client()
+        if not api_key:
+            error_msg = "DeepMyst API key is required"
+            ctx.error(error_msg)
+            return f"Error: DeepMyst API key is required"
+            
+        client = get_client(api_key)  # Use provided API key
         
         # First, get the best model for this query using the router
-        router_response = await get_best_model_for_query(prompt, ctx=ctx)
+        router_response = await get_best_model_for_query(prompt, api_key, ctx=ctx)
         
         # Check if the router call was successful
         if "error" in router_response and not "recommended_model" in router_response:
@@ -414,7 +457,14 @@ def get_deepmyst_info() -> str:
     3. Model Gateway: Access other LLMs including GPT-4o-mini and other models which can help you solve problems and collaborate with you.
   
     Combine the above tools to get a team to help you address user needs and prompts. Like collaborating with other LLMs, optimizing user queries and prompts. Finding the best LLM to answer the question or to validate your own answers using other LLMs.
-      Use the tools provided by this MCP server to access these features.
+    
+    IMPORTANT: You must provide your DeepMyst API key when calling any tool. Get your API key from https://platform.deepmyst.com.
+    
+    Example usage:
+    
+    Use smart_completion to explain quantum computing, with these parameters:
+    - api_key: your-deepmyst-api-key
+    - optimize: true
     """
 
 # API health check endpoint
@@ -422,19 +472,12 @@ def get_deepmyst_info() -> str:
 def get_health_check() -> str:
     """Get server health status"""
     try:
-        # Check if API key is set
-        api_key = os.environ.get("DEEPMYST_API_KEY")
-        if not api_key:
-            return json.dumps({
-                "status": "error",
-                "message": "DEEPMYST_API_KEY environment variable not set"
-            })
-            
         return json.dumps({
             "status": "healthy",
             "version": "1.0.0",
             "server": "deepmyst_mcp",
-            "transport": "SSE and STDIO supported"
+            "transport": "SSE and STDIO supported",
+            "api_key_required": True
         })
     except Exception as e:
         return json.dumps({
@@ -455,22 +498,12 @@ async def handle_post(scope, receive, send):
 
 # Run the server
 if __name__ == "__main__":
-    # Check for environment variables
-    api_key = os.environ.get("DEEPMYST_API_KEY")
-    if not api_key:
-        logger.error("DEEPMYST_API_KEY environment variable not set")
-        print("Error: DEEPMYST_API_KEY environment variable not set")
-        print("Please set your DeepMyst API key with:")
-        print("  export DEEPMYST_API_KEY=your-api-key  # Linux/macOS")
-        print("  set DEEPMYST_API_KEY=your-api-key     # Windows")
-        sys.exit(1)
-        
     # Check for command line arguments
     if len(sys.argv) > 1 and sys.argv[1] == "--stdio":
         # Run with stdio transport (for Claude Desktop)
         logger.info("Starting DeepMyst MCP server with stdio transport")
         print("Starting DeepMyst MCP server with stdio transport")
-        print("Press Ctrl+C to exit")
+        print("API keys must be provided with each tool call")
         mcp.run()
     else:
         # Run with SSE transport (for HTTP clients)
@@ -479,7 +512,7 @@ if __name__ == "__main__":
         
         logger.info(f"Starting DeepMyst MCP server with SSE transport on {host}:{port}")
         print(f"Starting DeepMyst MCP server with SSE transport on {host}:{port}")
-        print("Press Ctrl+C to exit")
+        print("API keys must be provided with each tool call")
         
         # Create the SSE transport
         sse = SseServerTransport("/mcp/message")
