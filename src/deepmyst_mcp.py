@@ -21,8 +21,9 @@ from mcp.server.fastmcp import FastMCP, Context
 from mcp.server.sse import SseServerTransport
 import uvicorn
 from starlette.applications import Starlette
-from starlette.routing import Route
-from starlette.responses import JSONResponse
+from starlette.routing import Route, Mount
+from starlette.responses import JSONResponse, Response
+from starlette.requests import Request
 
 # Configure logging
 logging.basicConfig(
@@ -501,53 +502,43 @@ async def homepage(request):
         "documentation": "For more information, visit https://platform.deepmyst.com"
     })
 
-# SSE transport handlers - FIXED: now correctly implements the ASGI application interface
-async def handle_sse(scope, receive, send):
-    """Handle SSE connection requests"""
-    # Connect using ASGI interface directly
-    logger.info(f"SSE connection attempt on path: {scope['path']}")
-    try:
-        # Use the sse instance directly instead of the class method
-        async with sse.connect_sse(scope, receive, send) as streams:
-            logger.info("New SSE connection established successfully")
-            await mcp.run_with_transport(streams[0], streams[1])
-    except Exception as e:
-        logger.error(f"Error in SSE connection: {str(e)}")
-        # Send a simple error response
-        await send({
-            "type": "http.response.start",
-            "status": 500,
-            "headers": [
-                [b"content-type", b"text/plain"],
-            ]
-        })
-        await send({
-            "type": "http.response.body",
-            "body": f"SSE connection error: {str(e)}".encode(),
-        })
+# IMPORTANT CHANGE: Created custom ApplicationDispatch to handle ASGI application
+class ApplicationDispatch:
+    """Custom ASGI application dispatcher for properly handling SSE connections."""
+    
+    def __init__(self, app):
+        self.app = app
+    
+    async def __call__(self, scope, receive, send):
+        await self.app(scope, receive, send)
 
-# Fixed POST handler
-async def handle_post(scope, receive, send):
-    """Handle POST requests for client-to-server messages"""
-    # Use ASGI interface directly
-    logger.info(f"POST message received on path: {scope['path']}")
-    try:
-        # Use the sse instance directly 
-        await sse.handle_post_message(scope, receive, send)
-    except Exception as e:
-        logger.error(f"Error in POST handler: {str(e)}")
-        # Send a simple error response
-        await send({
-            "type": "http.response.start", 
-            "status": 500,
-            "headers": [
-                [b"content-type", b"text/plain"],
-            ]
-        })
-        await send({
-            "type": "http.response.body",
-            "body": f"Error processing message: {str(e)}".encode(),
-        })
+# Custom SSE handler that adapts between Starlette and MCP's transport layers
+class SseHandler:
+    def __init__(self, mcp_server, sse_transport):
+        self.mcp_server = mcp_server
+        self.sse_transport = sse_transport
+    
+    async def __call__(self, scope, receive, send):
+        logger.info(f"SSE connection attempt on path: {scope['path']}")
+        try:
+            # Create an ASGI application using the transport
+            app = ApplicationDispatch(self.sse_transport.asgi_app)
+            # Handle the request
+            await app(scope, receive, send)
+        except Exception as e:
+            logger.error(f"Error in SSE connection: {str(e)}")
+            # Send a simple error response
+            await send({
+                "type": "http.response.start",
+                "status": 500,
+                "headers": [
+                    [b"content-type", b"text/plain"],
+                ],
+            })
+            await send({
+                "type": "http.response.body",
+                "body": f"SSE connection error: {str(e)}".encode(),
+            })
 
 # Run the server
 if __name__ == "__main__":
@@ -567,16 +558,23 @@ if __name__ == "__main__":
         print(f"Starting DeepMyst MCP server with SSE transport on {host}:{port}")
         print("API keys must be provided with each tool call")
         
-        # Create the SSE transport with support for both path patterns
-        sse = SseServerTransport(["/mcp/message", "/message"])
+        # Create the SSE transport - use proper initialization according to library
+        sse_transport = SseServerTransport()
+        sse_handler = SseHandler(mcp, sse_transport)
         
-        # Configure Starlette app with routes - FIXED: added root route and fixed ASGI app handling
+        # Register MCP with the transport
+        sse_transport.register_server(mcp)
+        
+        # Configure Starlette app with routes - Properly set up the SSE endpoints
         app = Starlette(routes=[
-            Route("/", endpoint=homepage),  # Added homepage route
-            Route("/mcp/sse", endpoint=handle_sse, is_asgi=True),  # Mark as ASGI app explicitly
-            Route("/sse", endpoint=handle_sse, is_asgi=True),  # Add alternative SSE endpoint
-            Route("/mcp/message", endpoint=handle_post, methods=["POST"]),
-            Route("/message", endpoint=handle_post, methods=["POST"]),  # Add alternative message endpoint
+            Route("/", endpoint=homepage),
+            # Use the custom SSE handler for both endpoint paths
+            # Set up as ASGI applications
+            Route("/mcp/sse", endpoint=sse_handler, methods=["GET"]),
+            Route("/sse", endpoint=sse_handler, methods=["GET"]),
+            # Message endpoints handled by the transport
+            Route("/mcp/message", endpoint=sse_transport.handle_message, methods=["POST"]),
+            Route("/message", endpoint=sse_transport.handle_message, methods=["POST"]),
         ])
         
         # Run the server with uvicorn
