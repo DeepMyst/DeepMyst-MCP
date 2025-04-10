@@ -23,6 +23,8 @@ from starlette.applications import Starlette
 from starlette.routing import Route
 from starlette.responses import JSONResponse
 from starlette.endpoints import HTTPEndpoint
+from starlette.responses import FileResponse
+from starlette.staticfiles import StaticFiles
 import uvicorn
 
 # Configure logging
@@ -601,11 +603,15 @@ if __name__ == "__main__":
             # Configure Starlette app with homepage endpoint and mount the SSE app
             app = Starlette(routes=[
                 Route("/", HomepageEndpoint),
+                Route("/mcp-verification.txt", lambda request: FileResponse("static/mcp-verification.txt")),
             ])
+            
             
             # Mount the SSE app at the root
             from starlette.routing import Mount
             app.routes.append(Mount("/", app=sse_app))
+
+            app.mount("/static", StaticFiles(directory="static"), name="static")
             
             # Run the server with uvicorn
             uvicorn.run(app, host=host, port=port)
