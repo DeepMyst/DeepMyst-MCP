@@ -75,13 +75,13 @@ export PORT=3000       # Change the port
 uv run deepmyst_mcp.py
 ```
 
-### Deploying to Render
+### Public Server
 
-The server is deployed at: https://deepmyst-mcp.onrender.com
+The DeepMyst MCP Server is publicly available at: https://mcp.deepmyst.com
 
 Available endpoints:
-- SSE endpoint: `https://deepmyst-mcp.onrender.com/mcp/sse`
-- Message endpoint: `https://deepmyst-mcp.onrender.com/mcp/message`
+- SSE endpoint: `https://mcp.deepmyst.com/mcp/sse`
+- Message endpoint: `https://mcp.deepmyst.com/mcp/message`
 
 ## Configuring Claude Desktop
 
@@ -238,6 +238,7 @@ For enhanced security in production environments:
 - **Sign Up**: [platform.deepmyst.com](https://platform.deepmyst.com) - Create a DeepMyst account and get your API key
 - **Try DeepMyst**: [ask.deepmyst.com](https://ask.deepmyst.com) - Interactive demo to experience DeepMyst's capabilities
 - **Documentation**: [docs.deepmyst.com](https://docs.deepmyst.com) - Comprehensive guides and API documentation
+- **Public MCP Server**: [mcp.deepmyst.com](https://mcp.deepmyst.com) - Use the public DeepMyst MCP server
 
 ## Troubleshooting
 
@@ -270,6 +271,27 @@ Check the DeepMyst MCP server logs for more detailed troubleshooting information
 For SSE deployments, you can check server health by accessing the `deepmyst://health` resource:
 ```
 Prompt: Check the health status of the DeepMyst MCP server.
+```
+
+## Using the Public Server
+
+To connect to the public DeepMyst MCP server:
+
+### For Web Clients
+
+Connect to the public server using the SSE endpoints:
+```javascript
+const mcpClient = new McpClient({
+  sseEndpoint: "https://mcp.deepmyst.com/mcp/sse",
+  messageEndpoint: "https://mcp.deepmyst.com/mcp/message"
+});
+```
+
+### For Command Line Clients
+
+Use the MCP CLI with the SSE transport:
+```bash
+mcp connect sse --url https://mcp.deepmyst.com
 ```
 
 ---
