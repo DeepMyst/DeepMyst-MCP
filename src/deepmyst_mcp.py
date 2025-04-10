@@ -21,9 +21,8 @@ from mcp.server.fastmcp import FastMCP, Context
 from mcp.server.sse import SseServerTransport
 import uvicorn
 from starlette.applications import Starlette
-from starlette.routing import Route, Mount
-from starlette.responses import JSONResponse, Response
-from starlette.requests import Request
+from starlette.routing import Route
+from starlette.responses import JSONResponse
 
 # Configure logging
 logging.basicConfig(
@@ -502,44 +501,6 @@ async def homepage(request):
         "documentation": "For more information, visit https://platform.deepmyst.com"
     })
 
-# IMPORTANT CHANGE: Created custom ApplicationDispatch to handle ASGI application
-class ApplicationDispatch:
-    """Custom ASGI application dispatcher for properly handling SSE connections."""
-    
-    def __init__(self, app):
-        self.app = app
-    
-    async def __call__(self, scope, receive, send):
-        await self.app(scope, receive, send)
-
-# Custom SSE handler that adapts between Starlette and MCP's transport layers
-class SseHandler:
-    def __init__(self, mcp_server, sse_transport):
-        self.mcp_server = mcp_server
-        self.sse_transport = sse_transport
-    
-    async def __call__(self, scope, receive, send):
-        logger.info(f"SSE connection attempt on path: {scope['path']}")
-        try:
-            # Create an ASGI application using the transport
-            app = ApplicationDispatch(self.sse_transport.asgi_app)
-            # Handle the request
-            await app(scope, receive, send)
-        except Exception as e:
-            logger.error(f"Error in SSE connection: {str(e)}")
-            # Send a simple error response
-            await send({
-                "type": "http.response.start",
-                "status": 500,
-                "headers": [
-                    [b"content-type", b"text/plain"],
-                ],
-            })
-            await send({
-                "type": "http.response.body",
-                "body": f"SSE connection error: {str(e)}".encode(),
-            })
-
 # Run the server
 if __name__ == "__main__":
     # Check for command line arguments
@@ -558,24 +519,9 @@ if __name__ == "__main__":
         print(f"Starting DeepMyst MCP server with SSE transport on {host}:{port}")
         print("API keys must be provided with each tool call")
         
-        # Create the SSE transport - use proper initialization according to library
-        sse_transport = SseServerTransport()
-        sse_handler = SseHandler(mcp, sse_transport)
-        
-        # Register MCP with the transport
-        sse_transport.register_server(mcp)
-        
-        # Configure Starlette app with routes - Properly set up the SSE endpoints
-        app = Starlette(routes=[
-            Route("/", endpoint=homepage),
-            # Use the custom SSE handler for both endpoint paths
-            # Set up as ASGI applications
-            Route("/mcp/sse", endpoint=sse_handler, methods=["GET"]),
-            Route("/sse", endpoint=sse_handler, methods=["GET"]),
-            # Message endpoints handled by the transport
-            Route("/mcp/message", endpoint=sse_transport.handle_message, methods=["POST"]),
-            Route("/message", endpoint=sse_transport.handle_message, methods=["POST"]),
-        ])
+        # This approach uses mcp's built-in sse_app method
+        # This is the most reliable approach - directly using the FastMCP's ASGI app capability
+        app = mcp.sse_app()
         
         # Run the server with uvicorn
         uvicorn.run(app, host=host, port=port)
