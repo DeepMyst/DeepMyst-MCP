@@ -60,19 +60,30 @@ uv pip install mcp openai aiohttp uvicorn starlette
 
 **For Claude Desktop (STDIO Transport):**
 ```bash
+python deepmyst_mcp.py --stdio
+# OR
 uv run deepmyst_mcp.py --stdio
 ```
 
 **For HTTP Clients (SSE Transport):**
 ```bash
-uv run deepmyst_mcp.py
+python deepmyst_mcp.py --sse
+# OR with custom host and port
+python deepmyst_mcp.py --sse --host 127.0.0.1 --port 3000
 ```
 
-By default, the SSE server runs on `0.0.0.0:8000`. You can customize the host and port using environment variables:
+The server now supports explicit command-line arguments:
+- `--stdio` - Run with STDIO transport (for Claude Desktop)
+- `--sse` - Run with SSE transport (for HTTP clients)
+- `--host HOST` - Specify host address (default: 0.0.0.0)
+- `--port PORT` - Specify port number (default: 8000)
+- `--debug` - Enable debug logging
+
+You can also use environment variables:
 ```bash
 export HOST=127.0.0.1  # Change the host
 export PORT=3000       # Change the port
-uv run deepmyst_mcp.py
+python deepmyst_mcp.py --sse
 ```
 
 ### Public Server
@@ -80,8 +91,8 @@ uv run deepmyst_mcp.py
 The DeepMyst MCP Server is publicly available at: https://mcp.deepmyst.com
 
 Available endpoints:
-- SSE endpoint: `https://mcp.deepmyst.com/mcp/sse`
-- Message endpoint: `https://mcp.deepmyst.com/mcp/message`
+- SSE endpoint: `https://mcp.deepmyst.com/sse`
+- Message endpoint: `https://mcp.deepmyst.com/messages`
 
 ## Configuring Claude Desktop
 
@@ -94,10 +105,9 @@ Available endpoints:
 {
   "mcpServers": {
     "deepmyst": {
-      "command": "uv",
+      "command": "python",
       "args": [
-        "run",
-        "path/to/deepmyst_mcp.py",
+        "/path/to/deepmyst_mcp.py",
         "--stdio"
       ]
     }
@@ -264,8 +274,17 @@ For enhanced security in production environments:
 - Verify network connectivity between client and server
 - Look for firewall or network restrictions that might block the connection
 
+**MCP Inspector connectivity:**
+- Use proper format for connecting: `npx @modelcontextprotocol/inspector dev http://localhost:8000`
+- Avoid using `--env` parameter which may cause parsing issues
+
 ### Logs
 Check the DeepMyst MCP server logs for more detailed troubleshooting information. Logs are written to `deepmyst.log` in the same directory as the server script.
+
+You can enable debug logging with the `--debug` flag:
+```bash
+python deepmyst_mcp.py --stdio --debug
+```
 
 ### Health Check
 For SSE deployments, you can check server health by accessing the `deepmyst://health` resource:
@@ -282,8 +301,8 @@ To connect to the public DeepMyst MCP server:
 Connect to the public server using the SSE endpoints:
 ```javascript
 const mcpClient = new McpClient({
-  sseEndpoint: "https://mcp.deepmyst.com/mcp/sse",
-  messageEndpoint: "https://mcp.deepmyst.com/mcp/message"
+  sseEndpoint: "https://mcp.deepmyst.com/sse",
+  messageEndpoint: "https://mcp.deepmyst.com/messages"
 });
 ```
 
@@ -292,6 +311,13 @@ const mcpClient = new McpClient({
 Use the MCP CLI with the SSE transport:
 ```bash
 mcp connect sse --url https://mcp.deepmyst.com
+```
+
+### Using MCP Inspector
+
+To connect the MCP Inspector to the public server:
+```bash
+npx @modelcontextprotocol/inspector dev https://mcp.deepmyst.com
 ```
 
 ---
